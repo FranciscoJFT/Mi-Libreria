@@ -92,6 +92,8 @@ textarea{min-height:140px;resize:vertical;line-height:1.55}
 .results{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .result{background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
 .result .cover{border-radius:2px}
+#sres .result:not(button) .cover{animation:pulse 1s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:.5}to{opacity:1}}
 .result:hover .title{text-decoration:underline}
 .result .title{font-size:12.5px}
 
@@ -215,8 +217,17 @@ function jsonp(url){
     setTimeout(()=>{ if(window[cb]){ done(); rej(new Error("timeout")); } },10000);
   });
 }
-async function searchBooks(q){
-  const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=12&fields=key,title,author_name,first_publish_year,cover_i`);
+async function searchBooks(q, signal){
+  // Google Books responde rápido; Open Library queda de respaldo
+  try{
+    const r = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=12&printType=books&fields=items(volumeInfo(title,authors,publishedDate,imageLinks))`, {signal});
+    if(r.ok){ const d = await r.json();
+      const out = (d.items||[]).map(({volumeInfo:v})=>({title:v.title, creator:(v.authors||[])[0]||"", year:(v.publishedDate||"").slice(0,4),
+        cover:((v.imageLinks||{}).thumbnail||"").replace("http://","https://").replace("&edge=curl","").replace("zoom=1","zoom=2")}));
+      if(out.length) return out;
+    }
+  }catch(e){ if(e.name==="AbortError") throw e; }
+  const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=12&fields=key,title,author_name,first_publish_year,cover_i`, {signal});
   const d = await r.json();
   return d.docs.map(b=>({title:b.title, creator:(b.author_name||[])[0]||"", year:b.first_publish_year||"",
     cover:b.cover_i?`https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg`:""}));
@@ -226,14 +237,14 @@ async function searchMovies(q){
   return d.results.map(m=>({title:m.trackName, creator:m.artistName||"", year:(m.releaseDate||"").slice(0,4),
     cover:(m.artworkUrl100||"").replace("100x100bb","600x900bb")}));
 }
-async function searchGames(q){
+async function searchGames(q, signal){
   const key = rawgKey();
   if(key){
-    const r = await fetch(`https://api.rawg.io/api/games?key=${encodeURIComponent(key)}&search=${encodeURIComponent(q)}&page_size=12`);
+    const r = await fetch(`https://api.rawg.io/api/games?key=${encodeURIComponent(key)}&search=${encodeURIComponent(q)}&page_size=12`, {signal});
     if(r.ok){ const d=await r.json();
       return d.results.map(g=>({title:g.name, creator:(g.platforms||[]).slice(0,2).map(p=>p.platform.name).join(", "), year:(g.released||"").slice(0,4), cover:g.background_image||""})); }
   }
-  const r = await fetch(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(q)}&limit=12`);
+  const r = await fetch(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(q)}&limit=12`, {signal});
   const d = await r.json();
   return d.map(g=>({title:g.external, creator:"", year:"",
     cover: g.steamAppID ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${g.steamAppID}/library_600x900.jpg` : g.thumb,
@@ -242,31 +253,43 @@ async function searchGames(q){
 const SEARCH = {book:searchBooks, movie:searchMovies, game:searchGames};
 
 /* ---------- Añadir ---------- */
-let addKind="book", results=[];
+let addKind="book", results=[], seq=0, ctrl=null, timer=null;
+const cache=new Map();
 function openAdd(){
+  const prev=$("#sq")?.value||"";
   openPanel("Añadir", `
     <div class="seg" id="kindSeg">${Object.entries(KINDS).map(([k,v])=>`<button data-k="${k}" aria-pressed="${k===addKind}">${v.one}</button>`).join("")}</div>
     <form class="searchrow" id="searchForm">
-      <input type="text" id="sq" placeholder="Título…" autocomplete="off">
-      <button class="btn primary" type="submit">Buscar</button>
+      <input type="text" id="sq" placeholder="Escribe un título…" autocomplete="off" enterkeyhint="search">
     </form>
-    <div id="sres"><div class="hint">Busca por título. Si no aparece, puedes <button class="btn ghost" id="manual" type="button" style="padding:0;text-decoration:underline">añadirlo a mano</button>.</div></div>`);
-  $("#sq").focus();
+    <div id="sres"><div class="hint">Los resultados aparecen mientras escribes. Si no está, puedes <button class="btn ghost" id="manual" type="button" style="padding:0;text-decoration:underline">añadirlo a mano</button>.</div></div>`);
+  const inp=$("#sq"); inp.value=prev; inp.focus();
   $("#kindSeg").onclick=e=>{ const b=e.target.closest("button"); if(!b)return; addKind=b.dataset.k; openAdd(); };
-  $("#searchForm").onsubmit=async e=>{ e.preventDefault(); const q=$("#sq").value.trim(); if(!q) return;
-    $("#sres").innerHTML=`<div class="hint">Buscando…</div>`;
-    try{ results = await SEARCH[addKind](q); }catch{ results=null; }
-    if(!results){ $("#sres").innerHTML=`<div class="hint">La búsqueda falló. Comprueba la conexión o añádelo a mano.</div>${manualLink()}`; bindManual(); return; }
-    if(!results.length){ $("#sres").innerHTML=`<div class="hint">Sin resultados para «${esc(q)}».</div>${manualLink()}`; bindManual(); return; }
-    $("#sres").innerHTML=`<div class="results">${results.map((r,i)=>`
-      <button class="result" data-i="${i}">${coverHTML(r.cover,r.title)}
-        <div><div class="title">${esc(r.title)}</div><div class="sub">${esc([r.creator,r.year].filter(Boolean).join(" · "))}</div></div></button>`).join("")}</div>${manualLink()}`;
-    // fallback de portada para juegos sin cápsula vertical
-    document.querySelectorAll("#sres .result img").forEach((img,i)=>{ const fb=results[i]?.fallback; if(fb) img.onerror=()=>{ img.onerror=()=>img.remove(); img.src=fb; results[i].cover=fb; }; });
-    bindManual();
-    $("#sres .results").onclick=e=>{ const b=e.target.closest(".result"); if(b) openEditor({kind:addKind,...results[+b.dataset.i]}, true); };
-  };
+  $("#searchForm").onsubmit=e=>{ e.preventDefault(); clearTimeout(timer); doSearch(inp.value.trim()); };
+  inp.oninput=()=>{ clearTimeout(timer); const q=inp.value.trim(); if(q.length<2) return; timer=setTimeout(()=>doSearch(q),300); };
   bindManual();
+  if(prev.trim().length>=2) doSearch(prev.trim());
+}
+async function doSearch(q){
+  if(!q) return;
+  const key=addKind+"|"+q.toLowerCase(), my=++seq;
+  if(ctrl) ctrl.abort(); ctrl=new AbortController();
+  let res=cache.get(key);
+  if(!res){
+    $("#sres").innerHTML=`<div class="results">${Array.from({length:6},()=>`<div class="result"><div class="cover"></div></div>`).join("")}</div>`;
+    try{ res = await SEARCH[addKind](q, ctrl.signal); cache.set(key,res); }
+    catch(e){ if(e.name==="AbortError"||my!==seq) return; res=null; }
+  }
+  if(my!==seq || !$("#sres")) return;
+  results=res;
+  if(!results){ $("#sres").innerHTML=`<div class="hint">La búsqueda falló. Comprueba la conexión o añádelo a mano.</div>${manualLink()}`; bindManual(); return; }
+  if(!results.length){ $("#sres").innerHTML=`<div class="hint">Sin resultados para «${esc(q)}».</div>${manualLink()}`; bindManual(); return; }
+  $("#sres").innerHTML=`<div class="results">${results.map((r,i)=>`
+    <button class="result" data-i="${i}">${coverHTML(r.cover,r.title)}
+      <div><div class="title">${esc(r.title)}</div><div class="sub">${esc([r.creator,r.year].filter(Boolean).join(" · "))}</div></div></button>`).join("")}</div>${manualLink()}`;
+  document.querySelectorAll("#sres .result img").forEach((img,i)=>{ const fb=results[i]?.fallback; if(fb) img.onerror=()=>{ img.onerror=()=>img.remove(); img.src=fb; results[i].cover=fb; }; });
+  bindManual();
+  $("#sres .results").onclick=e=>{ const b=e.target.closest(".result"); if(b) openEditor({kind:addKind,...results[+b.dataset.i]}, true); };
 }
 const manualLink=()=>`<div class="hint" style="margin-top:12px"><button class="btn ghost" id="manual" type="button" style="padding:0;text-decoration:underline">Añadir a mano</button></div>`;
 function bindManual(){ const m=$("#manual"); if(m) m.onclick=()=>openEditor({kind:addKind,title:$("#sq")?.value||"",creator:"",year:"",cover:""},true,true); }
