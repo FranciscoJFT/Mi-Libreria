@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mi estantería</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una columna estrecha, cabecera de texto, rejilla de portadas 2:3; el detalle se abre en un panel lateral */
+:root{
+  --bg:#f6f6f4; --surface:#ffffff; --fg:#17171a; --muted:#77777e; --line:#e3e3e0; --accent:#2b4bd6; --accent-fg:#ffffff;
+  --display:"Newsreader",Georgia,"Times New Roman",serif;
+  --body:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121214; --surface:#1b1b1e; --fg:#ececee; --muted:#8b8b93; --line:#2a2a2f; --accent:#8ea2ff; --accent-fg:#0e0e10; color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121214; --surface:#1b1b1e; --fg:#ececee; --muted:#8b8b93; --line:#2a2a2f; --accent:#8ea2ff; --accent-fg:#0e0e10; color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);-webkit-font-smoothing:antialiased}
+img{max-width:100%;display:block}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+.wrap{max-width:1080px;margin:0 auto;padding-block:40px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:28px}
+h1{font:400 clamp(34px,6vw,48px)/1 var(--display);letter-spacing:-.01em;margin:0}
+.count{font:400 12px var(--mono);color:var(--muted);margin-top:8px;letter-spacing:.02em}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:var(--r);font-size:14px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.primary:hover{opacity:.88}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--fg)}
+.btn.danger{color:#c4322b;background:none;border-color:transparent}
+.head-actions{display:flex;gap:8px;align-items:center}
+
+.toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:28px}
+.tabs{display:flex;gap:22px;overflow-x:auto}
+.tab{background:none;border:0;padding:10px 0;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg)}
+.tab span{font:12px var(--mono);margin-left:4px}
+.filters{display:flex;gap:8px;padding-block:6px}
+.filters input,.filters select{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:6px 10px;font-size:13px}
+.filters input{width:160px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:32px 22px}
+@media (max-width:480px){.grid{grid-template-columns:repeat(2,1fr);gap:24px 14px}.filters input{width:120px}}
+.card{background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:10px;min-width:0}
+.cover{position:relative;aspect-ratio:2/3;width:100%;max-width:100%;background:var(--line);border-radius:3px;overflow:hidden}
+.cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .3s}
+.card:hover .cover img{transform:scale(1.02)}
+.cover .ph{position:absolute;inset:0;display:flex;align-items:flex-end;padding:12px;font:400 17px/1.15 var(--display);color:var(--muted)}
+.score{position:absolute;top:8px;right:8px;background:var(--surface);color:var(--fg);font:500 13px var(--mono);padding:3px 7px;border-radius:4px;font-variant-numeric:tabular-nums}
+.meta{min-width:0}
+.title{font-weight:500;font-size:14px;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kind{font:11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+
+.empty{padding:80px 0;text-align:center;color:var(--muted)}
+.empty p{font:400 22px/1.3 var(--display);color:var(--fg);margin:0 0 8px}
+
+/* Paneles */
+.scrim{position:fixed;inset:0;background:rgba(10,10,12,.35);z-index:20}
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--bg);z-index:21;display:flex;flex-direction:column;border-left:1px solid var(--line);
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line);gap:12px}
+.panel-head h2{font:400 22px var(--display);margin:0}
+.panel-body{padding:20px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:20px}
+.panel-foot{display:flex;gap:8px;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--line)}
+
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;width:fit-content}
+.seg button{border:0;background:var(--surface);padding:7px 14px;font-size:13px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.searchrow{display:flex;gap:8px}
+.searchrow input{flex:1;min-width:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font:11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+input[type=text],input[type=url],textarea{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:9px 11px;width:100%}
+textarea{min-height:140px;resize:vertical;line-height:1.55}
+.hint{font-size:12px;color:var(--muted)}
+
+.results{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.result{background:none;border:0;padding:0;text-align:left;display:flex;flex-direction:column;gap:6px;min-width:0}
+.result .cover{border-radius:2px}
+.result:hover .title{text-decoration:underline}
+.result .title{font-size:12.5px}
+
+.picked{display:flex;gap:16px;align-items:flex-start}
+.picked .cover{width:110px;flex:none}
+.picked h3{font:400 24px/1.15 var(--display);margin:0 0 4px;text-wrap:balance}
+
+.rating{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.rating button{border:1px solid var(--line);background:var(--surface);border-radius:4px;padding:8px 0;font:500 14px var(--mono)}
+.rating button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.bignum{font:400 56px/1 var(--display);font-variant-numeric:tabular-nums}
+.bignum small{font:400 14px var(--mono);color:var(--muted)}
+.review{font:400 18px/1.6 var(--display);white-space:pre-wrap;max-width:65ch}
+.confirm{display:flex;gap:8px;align-items:center;font-size:13px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:var(--r);font-size:13px;z-index:30}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Mi estantería</h1>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="head-actions">
+      <button class="btn ghost" id="btnSettings">Ajustes</button>
+      <button class="btn primary" id="btnAdd">+ Añadir</button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="filters">
+      <input type="text" id="q" placeholder="Filtrar…" aria-label="Filtrar">
+      <select id="sort" aria-label="Ordenar">
+        <option value="date">Recientes</option>
+        <option value="score">Nota</option>
+        <option value="title">Título</option>
+      </select>
+    </div>
+  </div>
+
+  <main id="grid" class="grid"></main>
+  <div id="empty" class="empty" hidden>
+    <p>Aún no hay nada aquí</p>
+    <div>Pulsa «Añadir» y busca un libro, juego o película.</div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" hidden aria-modal="true" role="dialog">
+  <div class="panel-head"><h2 id="panelTitle"></h2><button class="btn ghost" id="btnClose">Cerrar</button></div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-foot" id="panelFoot"></div>
+</aside>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const KINDS = {book:{label:"Libros",one:"Libro"}, game:{label:"Juegos",one:"Juego"}, movie:{label:"Películas",one:"Película"}};
+const LS_ITEMS="estanteria.items.v1", LS_RAWG="estanteria.rawgKey";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let items = load();
+let tab = "all";
+
+function load(){ try{ return JSON.parse(localStorage.getItem(LS_ITEMS)) || [] }catch{ return [] } }
+function save(){ try{ localStorage.setItem(LS_ITEMS, JSON.stringify(items)) }catch{ toast("No se pudo guardar en el navegador") } }
+function rawgKey(){ try{ return localStorage.getItem(LS_RAWG) || "" }catch{ return "" } }
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.hidden=false; clearTimeout(t._h); t._h=setTimeout(()=>t.hidden=true,2200); }
+
+/* ---------- Render principal ---------- */
+function renderTabs(){
+  const counts = {all:items.length}; for(const k in KINDS) counts[k]=items.filter(i=>i.kind===k).length;
+  const list = [["all","Todo"], ...Object.entries(KINDS).map(([k,v])=>[k,v.label])];
+  $("#tabs").innerHTML = list.map(([k,l])=>`<button class="tab" role="tab" data-k="${k}" aria-selected="${tab===k}">${l}<span>${counts[k]}</span></button>`).join("");
+  const scored = items.filter(i=>i.score);
+  const avg = scored.length ? (scored.reduce((a,i)=>a+i.score,0)/scored.length).toFixed(1) : "–";
+  $("#count").textContent = `${items.length} obras · nota media ${avg}`;
+}
+function render(){
+  renderTabs();
+  const q = $("#q").value.trim().toLowerCase();
+  const sort = $("#sort").value;
+  let list = items.filter(i => (tab==="all"||i.kind===tab) && (!q || (i.title+" "+(i.creator||"")).toLowerCase().includes(q)));
+  list.sort((a,b)=> sort==="score" ? (b.score||0)-(a.score||0) : sort==="title" ? a.title.localeCompare(b.title,"es") : b.added-a.added);
+  $("#empty").hidden = list.length>0;
+  $("#grid").innerHTML = list.map(i=>`
+    <button class="card" data-id="${i.id}">
+      ${coverHTML(i.cover,i.title)}
+      <div class="meta">
+        <div class="title">${esc(i.title)}</div>
+        <div class="sub">${tab==="all"?`<span class="kind">${KINDS[i.kind].one}</span> · `:""}${esc([i.creator,i.year].filter(Boolean).join(" · "))}</div>
+      </div>
+    </button>`).join("").replace(/<div class="cover">/g,(m,o,s)=>m);
+  // badge de nota
+  list.forEach(i=>{ const c=document.querySelector(`.card[data-id="${i.id}"] .cover`); if(c && i.score) c.insertAdjacentHTML("beforeend",`<span class="score">${i.score}</span>`); });
+}
+function coverHTML(url,title){
+  return `<div class="cover"><div class="ph">${esc(title)}</div>${url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.remove()">`:""}</div>`;
+}
+
+/* ---------- Panel ---------- */
+function openPanel(title, body, foot){
+  $("#panelTitle").textContent=title; $("#panelBody").innerHTML=body; $("#panelFoot").innerHTML=foot||"";
+  $("#panel").hidden=false; $("#scrim").hidden=false; document.body.style.overflow="hidden";
+}
+function closePanel(){ $("#panel").hidden=true; $("#scrim").hidden=true; document.body.style.overflow=""; }
+$("#btnClose").onclick=closePanel; $("#scrim").onclick=closePanel;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !$("#panel").hidden) closePanel(); });
+
+/* ---------- Búsqueda en APIs públicas ---------- */
+function jsonp(url){
+  return new Promise((res,rej)=>{
+    const cb="__cb"+Math.random().toString(36).slice(2); const s=document.createElement("script");
+    const done=()=>{ delete window[cb]; s.remove(); };
+    window[cb]=d=>{ done(); res(d); }; s.onerror=()=>{ done(); rej(new Error("jsonp")); };
+    s.src=url+(url.includes("?")?"&":"?")+"callback="+cb; document.head.appendChild(s);
+    setTimeout(()=>{ if(window[cb]){ done(); rej(new Error("timeout")); } },10000);
+  });
+}
+async function searchBooks(q){
+  const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=12&fields=key,title,author_name,first_publish_year,cover_i`);
+  const d = await r.json();
+  return d.docs.map(b=>({title:b.title, creator:(b.author_name||[])[0]||"", year:b.first_publish_year||"",
+    cover:b.cover_i?`https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg`:""}));
+}
+async function searchMovies(q){
+  const d = await jsonp(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=movie&entity=movie&limit=12&country=es&lang=es_es`);
+  return d.results.map(m=>({title:m.trackName, creator:m.artistName||"", year:(m.releaseDate||"").slice(0,4),
+    cover:(m.artworkUrl100||"").replace("100x100bb","600x900bb")}));
+}
+async function searchGames(q){
+  const key = rawgKey();
+  if(key){
+    const r = await fetch(`https://api.rawg.io/api/games?key=${encodeURIComponent(key)}&search=${encodeURIComponent(q)}&page_size=12`);
+    if(r.ok){ const d=await r.json();
+      return d.results.map(g=>({title:g.name, creator:(g.platforms||[]).slice(0,2).map(p=>p.platform.name).join(", "), year:(g.released||"").slice(0,4), cover:g.background_image||""})); }
+  }
+  const r = await fetch(`https://www.cheapshark.com/api/1.0/games?title=${encodeURIComponent(q)}&limit=12`);
+  const d = await r.json();
+  return d.map(g=>({title:g.external, creator:"", year:"",
+    cover: g.steamAppID ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${g.steamAppID}/library_600x900.jpg` : g.thumb,
+    fallback: g.thumb}));
+}
+const SEARCH = {book:searchBooks, movie:searchMovies, game:searchGames};
+
+/* ---------- Añadir ---------- */
+let addKind="book", results=[];
+function openAdd(){
+  openPanel("Añadir", `
+    <div class="seg" id="kindSeg">${Object.entries(KINDS).map(([k,v])=>`<button data-k="${k}" aria-pressed="${k===addKind}">${v.one}</button>`).join("")}</div>
+    <form class="searchrow" id="searchForm">
+      <input type="text" id="sq" placeholder="Título…" autocomplete="off">
+      <button class="btn primary" type="submit">Buscar</button>
+    </form>
+    <div id="sres"><div class="hint">Busca por título. Si no aparece, puedes <button class="btn ghost" id="manual" type="button" style="padding:0;text-decoration:underline">añadirlo a mano</button>.</div></div>`);
+  $("#sq").focus();
+  $("#kindSeg").onclick=e=>{ const b=e.target.closest("button"); if(!b)return; addKind=b.dataset.k; openAdd(); };
+  $("#searchForm").onsubmit=async e=>{ e.preventDefault(); const q=$("#sq").value.trim(); if(!q) return;
+    $("#sres").innerHTML=`<div class="hint">Buscando…</div>`;
+    try{ results = await SEARCH[addKind](q); }catch{ results=null; }
+    if(!results){ $("#sres").innerHTML=`<div class="hint">La búsqueda falló. Comprueba la conexión o añádelo a mano.</div>${manualLink()}`; bindManual(); return; }
+    if(!results.length){ $("#sres").innerHTML=`<div class="hint">Sin resultados para «${esc(q)}».</div>${manualLink()}`; bindManual(); return; }
+    $("#sres").innerHTML=`<div class="results">${results.map((r,i)=>`
+      <button class="result" data-i="${i}">${coverHTML(r.cover,r.title)}
+        <div><div class="title">${esc(r.title)}</div><div class="sub">${esc([r.creator,r.year].filter(Boolean).join(" · "))}</div></div></button>`).join("")}</div>${manualLink()}`;
+    // fallback de portada para juegos sin cápsula vertical
+    document.querySelectorAll("#sres .result img").forEach((img,i)=>{ const fb=results[i]?.fallback; if(fb) img.onerror=()=>{ img.onerror=()=>img.remove(); img.src=fb; results[i].cover=fb; }; });
+    bindManual();
+    $("#sres .results").onclick=e=>{ const b=e.target.closest(".result"); if(b) openEditor({kind:addKind,...results[+b.dataset.i]}, true); };
+  };
+  bindManual();
+}
+const manualLink=()=>`<div class="hint" style="margin-top:12px"><button class="btn ghost" id="manual" type="button" style="padding:0;text-decoration:underline">Añadir a mano</button></div>`;
+function bindManual(){ const m=$("#manual"); if(m) m.onclick=()=>openEditor({kind:addKind,title:$("#sq")?.value||"",creator:"",year:"",cover:""},true,true); }
+
+/* ---------- Editor (nota + reseña) ---------- */
+function openEditor(it, isNew, manual){
+  let score = it.score||0;
+  const label = {book:"Autor",movie:"Director / estudio",game:"Plataforma"}[it.kind];
+  openPanel(isNew?"Valorar":"Editar", `
+    <div class="picked">${coverHTML(it.cover,it.title)}<div style="min-width:0">
+      <div class="kind">${KINDS[it.kind].one}</div><h3>${esc(it.title)||"Sin título"}</h3>
+      <div class="sub">${esc([it.creator,it.year].filter(Boolean).join(" · "))}</div></div></div>
+    ${manual||!isNew?`
+      <div class="field"><label for="fTitle">Título</label><input type="text" id="fTitle" value="${esc(it.title)}"></div>
+      <div class="field"><label for="fCreator">${label}</label><input type="text" id="fCreator" value="${esc(it.creator)}"></div>
+      <div class="field"><label for="fYear">Año</label><input type="text" id="fYear" value="${esc(it.year)}" inputmode="numeric"></div>
+      <div class="field"><label for="fCover">URL de la portada</label><input type="url" id="fCover" value="${esc(it.cover)}" placeholder="https://…"></div>`:""}
+    <div class="field"><label>Nota</label><div class="rating" id="rating">${Array.from({length:10},(_,i)=>`<button type="button" data-v="${i+1}" class="${i+1<=score?"on":""}">${i+1}</button>`).join("")}</div></div>
+    <div class="field"><label for="fReview">Reseña</label><textarea id="fReview" placeholder="Qué te pareció…">${esc(it.review)}</textarea></div>`,
+    `<span>${isNew?"":`<button class="btn danger" id="del">Eliminar</button>`}</span><button class="btn primary" id="saveBtn">Guardar</button>`);
+  $("#rating").onclick=e=>{ const b=e.target.closest("button"); if(!b)return; score=+b.dataset.v;
+    $("#rating").querySelectorAll("button").forEach(x=>x.classList.toggle("on",+x.dataset.v<=score)); };
+  $("#saveBtn").onclick=()=>{
+    const get=id=>$(id)?$(id).value.trim():null;
+    const data={...it, title:get("#fTitle")??it.title, creator:get("#fCreator")??it.creator, year:get("#fYear")??it.year,
+      cover:get("#fCover")??it.cover, score, review:$("#fReview").value.trim()};
+    delete data.fallback;
+    if(!data.title){ toast("Ponle un título"); return; }
+    if(isNew){ data.id=crypto.randomUUID?crypto.randomUUID():String(Date.now()); data.added=Date.now(); items.push(data); }
+    else items = items.map(x=>x.id===data.id?data:x);
+    save(); render(); closePanel(); toast(isNew?"Añadido":"Guardado");
+  };
+  const del=$("#del"); if(del) del.onclick=()=>{
+    del.parentElement.innerHTML=`<span class="confirm">¿Seguro? <button class="btn danger" id="delYes">Sí, eliminar</button></span>`;
+    $("#delYes").onclick=()=>{ items=items.filter(x=>x.id!==it.id); save(); render(); closePanel(); toast("Eliminado"); };
+  };
+}
+
+/* ---------- Detalle ---------- */
+function openDetail(it){
+  openPanel(KINDS[it.kind].one, `
+    <div class="picked">${coverHTML(it.cover,it.title)}<div style="min-width:0">
+      <h3>${esc(it.title)}</h3><div class="sub">${esc([it.creator,it.year].filter(Boolean).join(" · "))}</div>
+      <div class="bignum" style="margin-top:14px">${it.score||"–"}<small> /10</small></div></div></div>
+    ${it.review?`<div class="review">${esc(it.review)}</div>`:`<div class="hint">Sin reseña.</div>`}
+    <div class="hint">Añadido el ${new Date(it.added).toLocaleDateString("es-ES",{day:"numeric",month:"long",year:"numeric"})}</div>`,
+    `<span></span><button class="btn" id="editBtn">Editar</button>`);
+  $("#editBtn").onclick=()=>openEditor(it,false);
+}
+
+/* ---------- Ajustes / copia ---------- */
+function openSettings(){
+  openPanel("Ajustes", `
+    <div class="field"><label for="rk">Clave de RAWG (opcional)</label>
+      <input type="text" id="rk" value="${esc(rawgKey())}" placeholder="Sin clave se usa CheapShark + Steam">
+      <div class="hint">Con una clave gratuita de rawg.io/apidocs las búsquedas de juegos incluyen consolas.</div></div>
+    <div class="field"><label>Copia de seguridad</label>
+      <div class="hint">Tus datos viven en este navegador. Exporta de vez en cuando para no perderlos.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="exp">Exportar JSON</button>
+        <label class="btn" for="imp" style="display:inline-block">Importar JSON</label>
+        <input type="file" id="imp" accept="application/json" hidden>
+      </div></div>`,
+    `<span></span><button class="btn primary" id="setSave">Guardar</button>`);
+  $("#setSave").onclick=()=>{ try{ localStorage.setItem(LS_RAWG,$("#rk").value.trim()); }catch{} closePanel(); toast("Ajustes guardados"); };
+  $("#exp").onclick=()=>{ const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(items,null,2)],{type:"application/json"}));
+    a.download=`estanteria-${new Date().toISOString().slice(0,10)}.json`; a.click(); };
+  $("#imp").onchange=async e=>{ const f=e.target.files[0]; if(!f) return;
+    try{ const d=JSON.parse(await f.text()); if(!Array.isArray(d)) throw 0;
+      const ids=new Set(items.map(i=>i.id)); const nuevos=d.filter(i=>i&&i.id&&i.title&&KINDS[i.kind]&&!ids.has(i.id));
+      items=items.concat(nuevos); save(); render(); closePanel(); toast(`Importadas ${nuevos.length} obras`);
+    }catch{ toast("El archivo no es una copia válida"); } };
+}
+
+/* ---------- Eventos ---------- */
+$("#tabs").onclick=e=>{ const b=e.target.closest(".tab"); if(b){ tab=b.dataset.k; render(); } };
+$("#grid").onclick=e=>{ const c=e.target.closest(".card"); if(c) openDetail(items.find(i=>i.id===c.dataset.id)); };
+$("#q").oninput=render; $("#sort").onchange=render;
+$("#btnAdd").onclick=()=>{ addKind = tab==="all"?addKind:tab; openAdd(); };
+$("#btnSettings").onclick=openSettings;
+render();
+</script>
+</body>
+</html>
